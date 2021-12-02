@@ -48,4 +48,9 @@ typedef struct DirEntry {
   unsigned int   DIR_FileSize;      // File size in bytes. (0 for directories)
 } DirEntry;
 #pragma pack(pop)
+#define FAT_ENTRY_SIZE 4 // in Byte
+#define FAT_EOF 0x0ffffff8
+#define FAT_NAME_SIZE 8
+#define FAT_EXT_SIZE 3
+#define DEL_FILE_HEAD 0xE5
 #endif
