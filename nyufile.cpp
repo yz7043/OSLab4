@@ -22,6 +22,10 @@ unsigned char reverse(unsigned char);
 bool isEmptyName(unsigned char*);
 bool isDelName(unsigned char*);
 string getName(unsigned char*, bool);
+// Task 4,5,6,7
+bool recoverContFile(const char*, const char* = NULL);
+bool detectAmbiguity(const char*);
+
 struct BootEntry* getRootEntry(const char* fileName);
 string USAGE_INFO = "Usage: ./nyufile disk <options>\n"
 "  -i                     Print the file system information.\n"
@@ -39,6 +43,7 @@ int main(int argc, char** argv){
     char* recoverFile = NULL, * shaStr = NULL;
     const char* fileName = argv[optind];
     bool getInfo = false, getRoot = false;
+    bool nonCont = false;
     struct BootEntry* bootEntry = getRootEntry(fileName);
     while((opt = getopt(argc, argv, "ilr:R:s:")) != -1){
         switch(opt){
@@ -54,6 +59,7 @@ int main(int argc, char** argv){
                 break;
             case 'R':
                 recover = true;
+                nonCont = true;
                 recoverFile = argv[optind];
                 break;
             case 's':
@@ -131,7 +137,7 @@ void printRootDir(const struct BootEntry* bootEntry, const char* fileName){
         while(entryOffset < entryPerClus){
             struct DirEntry dirEntry;
             memcpy((void*)&dirEntry, fileMap + dataConStart + entryOffset  * sizeof(DirEntry), sizeof(DirEntry));
-            if(!isDelName(dirEntry.DIR_Name) & !isEmptyName(dirEntry.DIR_Name)){
+            if(!isEmptyName(dirEntry.DIR_Name) && !isDelName(dirEntry.DIR_Name)){
                 string name = getName(dirEntry.DIR_Name, dirEntry.DIR_Attr & DIR_MASK);
                 uint32_t cls = dirEntry.DIR_FstClusHI << 16 | dirEntry.DIR_FstClusLO;
                 cout << name + " (size = " << dirEntry.DIR_FileSize << ", starting cluster = "<< cls <<")" << endl;
@@ -180,7 +186,7 @@ bool isEmptyName(unsigned char* name){
 }
 
 bool isDelName(unsigned char* name){
-    return name[0] == 0xE && name[1] == 0x5;
+    return ((name[0] & (uint8_t)0xE) && (name[1] & (uint8_t)0x5));
 }
 string getName(unsigned char* name, bool isDir){
     // TODO: distinguish EMPTY and DIR ?
@@ -207,4 +213,10 @@ string getName(unsigned char* name, bool isDir){
     else{
         return ext == "" ? n : n + "." + ext;
     }
+}
+
+bool recoverContFile(const char* name, const char* shaStr){}
+
+bool detectAmbiguity(const char* name){
+
 }
