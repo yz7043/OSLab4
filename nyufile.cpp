@@ -105,6 +105,7 @@ void printRootDir(const struct BootEntry* bootEntry, const char* fileName){
     fileMap = (const char*)mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
     // read Fat
     uint32_t ntClt;
+    int totalEntires = 0;
     memcpy((void*)&ntClt, fileMap + firstFat + 2 * FAT_ENTRY_SIZE, sizeof(uint32_t));
     uint32_t entryPerClus = (uint32_t)bootEntry->BPB_BytsPerSec * (uint32_t)bootEntry->BPB_SecPerClus / sizeof(DirEntry);
     int entryOffset = 0;
@@ -112,9 +113,10 @@ void printRootDir(const struct BootEntry* bootEntry, const char* fileName){
         struct DirEntry dirEntry;
         memcpy((void*)&dirEntry, fileMap + dataStart + entryOffset  * sizeof(DirEntry), sizeof(DirEntry));
         if(!isDelName(dirEntry.DIR_Name) & !isEmptyName(dirEntry.DIR_Name)){
-            // TODO: print name
-            // cout << getName(dirEntry.DIR_Name) << endl;
-            cout << dirEntry.DIR_Name <<" : "<< dirEntry.DIR_FileSize << endl;
+            string name = getName(dirEntry.DIR_Name, dirEntry.DIR_Attr & DIR_MASK);
+            uint32_t cls = dirEntry.DIR_FstClusHI << 16 | dirEntry.DIR_FstClusLO;
+            cout << name + " (size = " << dirEntry.DIR_FileSize << ", starting cluster = "<< cls <<")" << endl;
+            totalEntires++;
         }
         entryOffset++;
     }
@@ -130,8 +132,10 @@ void printRootDir(const struct BootEntry* bootEntry, const char* fileName){
             struct DirEntry dirEntry;
             memcpy((void*)&dirEntry, fileMap + dataConStart + entryOffset  * sizeof(DirEntry), sizeof(DirEntry));
             if(!isDelName(dirEntry.DIR_Name) & !isEmptyName(dirEntry.DIR_Name)){
-                // TODO: print name
-                // cout << getName(dirEntry.DIR_Name, dirEntry->DIR_FileSize) << endl;
+                string name = getName(dirEntry.DIR_Name, dirEntry.DIR_Attr & DIR_MASK);
+                uint32_t cls = dirEntry.DIR_FstClusHI << 16 | dirEntry.DIR_FstClusLO;
+                cout << name + " (size = " << dirEntry.DIR_FileSize << ", starting cluster = "<< cls <<")" << endl;
+                totalEntires++;
             }
             entryOffset++;
         }
@@ -139,8 +143,7 @@ void printRootDir(const struct BootEntry* bootEntry, const char* fileName){
         memcpy((void*)&ntClt, fileMap + firstFat + ntClt * FAT_ENTRY_SIZE, sizeof(uint32_t));
         
     }
-    // struct DirEntry dirEntry;
-    // memcpy((void*)&dirEntry, fileMap + dataStart, sizeof(DirEntry));
+    cout << "Total number of entries = " << totalEntires << endl;
 
     //close file
     close(fd);
@@ -184,7 +187,7 @@ string getName(unsigned char* name, bool isDir){
     string n = "", ext = ""; 
     for(int i = 0; i < FAT_EXT_SIZE + FAT_NAME_SIZE; i++){
         if(i < FAT_NAME_SIZE){
-            if(name[i] != 20){
+            if(name[i] != (unsigned char)' '){
                 n += (char)name[i];
             }else{
                 continue;
@@ -193,13 +196,15 @@ string getName(unsigned char* name, bool isDir){
             if(isDir){
                 break;
             }
-            if(name[i] != 20){
+            if(name[i] != (unsigned char)' '){
                 ext += (char)name[i];
             }else{
                 continue;
             }
         }
     }
-    if(isDir) return n+"/";
-    else return n + "." + ext;
+    if(isDir){return n+"/";}
+    else{
+        return ext == "" ? n : n + "." + ext;
+    }
 }
