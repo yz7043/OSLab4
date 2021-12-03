@@ -52,6 +52,7 @@ typedef struct DirEntry {
 #define FAT_EOF 0x0ffffff8
 #define FAT_NAME_SIZE 8
 #define FAT_EXT_SIZE 3
+#define FAT_FILE_NAME 11
 #define DEL_FILE_HEAD 0xE5
 #define DIR_MASK 0x10
 #endif
