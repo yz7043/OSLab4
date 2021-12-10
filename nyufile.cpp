@@ -36,7 +36,6 @@ const char* fileName;
 int fd = -1;
 char* fileMap = NULL;
 // Task 4,5,6,7
-bool recoverContFile(const char*, const char* = NULL);
 vector<uint32_t> getAllClsts(uint32_t startClst);
 unsigned char* getUCName(const char* name);
 struct BootEntry* bootEntry;
@@ -106,7 +105,7 @@ int main(int argc, char** argv){
             if(hasSHA){
                 std::cout << "recover with SHA" << endl;
             }else{
-                recoverContFile(recoverFile);
+                fsh->recoverConFile(recoverFile);
             }
         }else{
             if(hasSHA){
@@ -167,56 +166,6 @@ string getName(unsigned char* name, bool isDir){
     else{
         return ext == "" ? n : n + "." + ext;
     }
-}
-
-bool recoverContFile(const char* name, const char* shaStr){
-    vector<uint32_t> dirEntries = getAllMatchFiles(name, true);
-    bool result = false;
-    if(dirEntries.size() == 0){
-        // No find such name
-        cout << name << ": file not found" << endl;
-        result = false;
-    }else if(shaStr == NULL){
-        // 
-        if(dirEntries.size() > 1){
-            cout << name << ": multiple candidates found" << endl;
-            result = false;
-        }else{
-            result = true;
-            struct DirEntry dirEntry;
-            openFile();
-            memcpy((void*) &dirEntry, fileMap+dirEntries[0], sizeof(DirEntry));
-            // update name
-            dirEntry.DIR_Name[0] = (unsigned char) name[0];
-            cout << "before: "<< * (fileMap+dirEntries[0]) << endl;
-            memcpy((void*)(fileMap+dirEntries[0]), (const void*)dirEntry.DIR_Name, sizeof(unsigned char) * FAT_FILE_NAME);
-            cout << "after: "<< * (fileMap+dirEntries[0]) << endl;
-            unsigned int numOfClsts = dirEntry.DIR_FileSize / (bootEntry->BPB_BytsPerSec * bootEntry->BPB_SecPerClus);
-            uint32_t cls = dirEntry.DIR_FstClusHI << 16 | dirEntry.DIR_FstClusLO;
-            
-            for(unsigned int i = 0; i < numOfClsts; i++){
-                uint32_t nextCls = cls + 1;
-                if(i == numOfClsts-1){
-                    uint32_t fatEOF = FAT_EOF;
-                    memcpy((void*)(fileMap+firstFatStart+(cls+i)*FAT_ENTRY_SIZE), (const void*) &fatEOF, FAT_ENTRY_SIZE);
-                }else{
-                    uint32_t nextCls = cls+i+1; // here we assume contiguous
-                    memcpy((void*)(fileMap+firstFatStart+(cls+i)*FAT_ENTRY_SIZE), (const void*) &nextCls, FAT_ENTRY_SIZE);
-                }
-            }
-            int syncRes = msync((void*) fileMap, fileSize, MS_SYNC);
-            cout << syncRes << endl;
-
-            closeFile();
-            openFile();
-            cout << "FF: "<< * (fileMap+dirEntries[0]) << endl;
-            closeFile();
-            cout << name << ": successfully recovered" << endl;
-        }
-    }else{
-
-    }
-    return result;
 }
 
 vector<uint32_t> getAllClsts(uint32_t startClst){

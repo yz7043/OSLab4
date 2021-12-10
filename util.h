@@ -4,6 +4,15 @@
 #include <stdint.h>
 #include <vector>
 #include "nyufile.h"
+class DelFileInfo{
+public:
+    uint32_t fatStart;
+    uint32_t fileSize;
+    uint32_t entryStart; // reletaive to dataSt.
+    DelFileInfo(uint32_t fat, uint32_t size, uint32_t ent){
+        fatStart = fat; fileSize = size; entryStart = ent;
+    }
+};
 class FileHandler{
 public:
     size_t fileSize;
@@ -40,5 +49,14 @@ public:
     bool isDelName(unsigned char*);
     bool isEmptyName(unsigned char*);
     std::string getName(unsigned char*, bool);
+    int recoverConFile(const char*);
+    int recoverConFileSha(const char*, const char*);
+    std::vector<DelFileInfo> getAllDelFiles(const char*);
+    unsigned char* getUCName(const char*);
+    uint32_t getClstFromLoHi(unsigned short hi, unsigned short lo);
+
 };
+#define FILE_NOT_FOUND ": file not found"
+#define MULTI_FILE_FOUND ": multiple candidates found"
+
 #endif

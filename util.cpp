@@ -32,7 +32,7 @@ int FileHandler::openFile(bool rdOnly){
     if(rdOnly)
         this->fileMap = (char*)mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, fd, 0);
     else
-        this->fileMap = (char*)mmap(NULL, fileSize, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+        this->fileMap = (char*)mmap(NULL, fileSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     return fd;
 }
 void FileHandler::closeFile(){ 
@@ -164,4 +164,115 @@ string FSHandler::getName(unsigned char* name, bool isDir){
     else{
         return ext == "" ? n : n + "." + ext;
     }
+}
+
+int FSHandler::recoverConFile(const char* name){
+    vector<DelFileInfo> allPosFiles = getAllDelFiles(name); 
+    // for(int i = 0; i < allPosFiles.size(); i++){
+    //     cout << "Recover start cluster: " << allPosFiles[i].fatStart << ", fileSize: "<< 
+    //     allPosFiles[i].fileSize << ", mmap start" << allPosFiles[i].entryStart << ";" << endl;
+    // }
+    if(allPosFiles.size() > 1){
+        cout << name << MULTI_FILE_FOUND << endl;
+        return -1;
+    }else if(allPosFiles.empty()){
+        cout << name << FILE_NOT_FOUND << endl;
+        return -2;
+    }
+    fileH->openFile(false);
+    DelFileInfo fileInfo = *allPosFiles.begin();
+    // uint32_t startCls = getClstFromLoHi(fileInfo->DIR_FstClusHI, fileInfo->DIR_FstClusLO);
+    uint32_t numClsts = fileInfo.fileSize / (bytePerSec * secPerClus) + (fileInfo.fileSize % (bytePerSec * secPerClus) != 0);
+    // get the root entry
+    DirEntry tempEnt;
+    memcpy((void*)&tempEnt, fileH->fileMap+dataSt+fileInfo.entryStart, sizeof(DirEntry));
+    // write name first
+    tempEnt.DIR_Name[0] = (unsigned char) name[0];
+    memcpy((void*)(fileH->fileMap+dataSt+fileInfo.entryStart), (void *)tempEnt.DIR_Name, FAT_FILE_NAME);
+    uint32_t curClst = fileInfo.fatStart;
+    uint32_t fatContent;
+    for(uint32_t i = 0; i < numClsts; i++){
+        if(i == numClsts - 1){
+            fatContent = FAT_EOF;
+        }else{
+            fatContent = curClst + 1;
+        }
+        // cout << "Which Clster: " << std::hex << curClst << ", To write: "<< fatContent << endl;
+        for(uint32_t i = 0; i < numOfFat; i++){
+            uint32_t fatSt = fatStPoint[i];
+            memcpy((void*)(fileH->fileMap+fatSt+curClst*FAT_ENTRY_SIZE), &fatContent, sizeof(fatContent));
+        }
+        curClst++;
+    }
+    fileH->closeFile();
+    return 1;
+}
+
+int FSHandler::recoverConFileSha(const char* name, const char* shaStr){
+    return 1;
+}
+
+vector<DelFileInfo> FSHandler::getAllDelFiles(const char* name){
+    /**
+     * @brief: Take a file name and return all possible deleted file name start with 0xE5
+     * @return: (start block, file size)
+     */
+    vector<DelFileInfo> delFilesSt;
+    unsigned char* fsName = getUCName(name);
+    vector<uint32_t> allClsts = getAllClsts(bootEntry->BPB_RootClus);
+    fileH->openFile();
+    for(int i = 0; i < allClsts.size(); i++){
+        int entryOffset = 0;
+        while(entryOffset < dirEntPerClst){
+            struct DirEntry dirEntry;
+            memcpy((void*)&dirEntry, fileH->fileMap + dataSt + entryOffset  * sizeof(DirEntry), sizeof(DirEntry));
+            if(isDelName(dirEntry.DIR_Name)){
+                string name = getName(dirEntry.DIR_Name, dirEntry.DIR_Attr & DIR_MASK);
+                uint32_t cls = getClstFromLoHi(dirEntry.DIR_FstClusHI, dirEntry.DIR_FstClusLO);
+                DelFileInfo tempDel = DelFileInfo(cls, dirEntry.DIR_FileSize, entryOffset);
+                delFilesSt.push_back(tempDel);
+            }
+            entryOffset++;
+        }
+    }
+    fileH->closeFile();
+    delete fsName;
+    return delFilesSt;
+}
+
+unsigned char* FSHandler::getUCName(const char* name){
+    vector<unsigned char> head;
+    vector<unsigned char> ext;
+    bool _findDot = false;
+    for(int i = 0; i < strlen(name); i++){
+        if(name[i] == '.'){
+            _findDot = true;
+        }else{
+            if(_findDot){
+                ext.push_back((unsigned int) name[i]);
+            }else{
+                head.push_back((unsigned int) name[i]);
+            }
+        }
+    }
+    unsigned char* ucName = new unsigned char[FAT_NAME_SIZE + FAT_EXT_SIZE];
+    for(int i = 0; i < FAT_NAME_SIZE; i++){
+        if(i < head.size()){
+            ucName[i] = head[i];
+        }else{
+            ucName[i] = (unsigned char)' ';
+        }
+    }
+    for(int i = 0; i < FAT_EXT_SIZE; i++){
+        if(i < ext.size()){
+            ucName[i + FAT_NAME_SIZE] = ext[i];
+        }else{
+            ucName[i + FAT_NAME_SIZE] = (unsigned int) ' ';
+        }
+    }
+    return ucName;
+}
+
+uint32_t FSHandler::getClstFromLoHi(unsigned short hi, unsigned short lo){
+    return (uint32_t)hi << 16 | (uint32_t)lo;
 }
