@@ -4,6 +4,8 @@
 #include <iostream>
 #include <unistd.h>
 #include <cstring>
+#include <openssl/sha.h>
+#include <stdio.h>
 #include "util.h"
 /*
 Class FileHandler
@@ -63,6 +65,7 @@ int FSHandler::initHandler(){
     rsvdAreaSize = (uint32_t)bootEntry->BPB_RsvdSecCnt * bootEntry->BPB_BytsPerSec;
     fatSize = (uint32_t)bootEntry->BPB_FATSz32 * bootEntry->BPB_BytsPerSec;
     dirEntPerClst = bytePerSec * secPerClus / sizeof(DirEntry);
+    // dataStart = (uint32_t)bootEntry->BPB_RsvdSecCnt * bytePerSec + numOfFat * fatSize * bytePerSec;
     // update fat start info
     for(int i = 0; i < numOfFat; i++){
         fatStPoint.push_back(rsvdAreaSize + fatSize * i);
@@ -72,7 +75,8 @@ int FSHandler::initHandler(){
 }
 
 FSHandler::FSHandler(FileHandler* fileH){
-    this->fileH = fileH; dataStart = 0;
+    this->fileH = fileH;
+    //  dataStart = 0;
     numOfFat = 0; secPerClus = 0;
     bytePerSec = 0; bootEntry = NULL;
     rsvSecs=0;
@@ -168,15 +172,9 @@ string FSHandler::getName(unsigned char* name, bool isDir){
 
 int FSHandler::recoverConFile(const char* name){
     vector<DelFileInfo> allPosFiles = getAllDelFiles(name); 
-    // for(int i = 0; i < allPosFiles.size(); i++){
-    //     cout << "Recover start cluster: " << allPosFiles[i].fatStart << ", fileSize: "<< 
-    //     allPosFiles[i].fileSize << ", mmap start" << allPosFiles[i].entryStart << ";" << endl;
-    // }
     if(allPosFiles.size() > 1){
-        cout << name << MULTI_FILE_FOUND << endl;
         return -1;
     }else if(allPosFiles.empty()){
-        cout << name << FILE_NOT_FOUND << endl;
         return -2;
     }
     fileH->openFile(false);
@@ -208,7 +206,56 @@ int FSHandler::recoverConFile(const char* name){
     return 1;
 }
 
-int FSHandler::recoverConFileSha(const char* name, const char* shaStr){
+int FSHandler::recoverConFileSha(const char* name, const unsigned char* shaStr){
+    vector<DelFileInfo> allPosFiles = getAllDelFiles(name); 
+    if(allPosFiles.empty()) return -1;
+    fileH->openFile(false);
+    bool findSHA = false;
+    for(vector<DelFileInfo>::iterator it = allPosFiles.begin(); it != allPosFiles.end(); it++){
+        unsigned char* fileCont = new unsigned char[it->fileSize];
+        getConFileContent(fileH->fileMap, fileCont, *it);
+        unsigned char shaHash[SHA_DIGEST_LENGTH];
+        unsigned char fileShaStr[SHA_DIGEST_LENGTH*2];
+        SHA1(reinterpret_cast<unsigned char*>(fileCont), it->fileSize, shaHash);
+        for (int i=0; i < SHA_DIGEST_LENGTH; i++) {
+            sprintf((char*)&(fileShaStr[i*2]), "%02x", shaHash[i]);
+        }
+        bool isSame = true;
+        for(int i = 0; i < SHA_DIGEST_LENGTH * 2; i++){
+            // cout << (char)fileShaStr[i];
+            if(fileShaStr[i] != shaStr[i]){
+                isSame = false; break;
+            }
+        }
+        if(isSame){
+            DelFileInfo& fileInfo = *it;
+            findSHA = true;
+            uint32_t numClsts = fileInfo.fileSize / (bytePerSec * secPerClus) + (fileInfo.fileSize % (bytePerSec * secPerClus) != 0);
+            // recover root dir
+            DirEntry tempEnt;
+            memcpy((void*)&tempEnt, fileH->fileMap+dataSt+fileInfo.entryStart, sizeof(DirEntry));
+            tempEnt.DIR_Name[0] = (unsigned char) name[0];
+            memcpy((void*)(fileH->fileMap+dataSt+fileInfo.entryStart), (void *)tempEnt.DIR_Name, FAT_FILE_NAME);
+            // recover fats table
+            uint32_t curClst = fileInfo.fatStart;
+            uint32_t fatContent;
+            for(uint32_t i = 0; i < numClsts; i++){
+                if(i == numClsts - 1){
+                    fatContent = FAT_EOF;
+                }else{
+                    fatContent = curClst + 1;
+                }
+                for(uint32_t i = 0; i < numOfFat; i++){
+                    uint32_t fatSt = fatStPoint[i];
+                    memcpy((void*)(fileH->fileMap+fatSt+curClst*FAT_ENTRY_SIZE), &fatContent, sizeof(fatContent));
+                }
+                curClst++;
+            }
+        }
+        delete fileCont;
+    }
+    fileH->closeFile();
+    if (!findSHA) return -1;
     return 1;
 }
 
@@ -275,4 +322,19 @@ unsigned char* FSHandler::getUCName(const char* name){
 
 uint32_t FSHandler::getClstFromLoHi(unsigned short hi, unsigned short lo){
     return (uint32_t)hi << 16 | (uint32_t)lo;
+}
+
+void FSHandler::getConFileContent(const char* fMap, unsigned char* des, const DelFileInfo& fileInfo){
+    uint32_t numOfClsts = fileInfo.fileSize / (bytePerSec * secPerClus) + (fileInfo.fileSize % (bytePerSec * secPerClus) != 0);
+    // First get where is the file
+    uint32_t curClstSt; uint32_t bytePerCls = bytePerSec * secPerClus;
+    uint32_t rtClst = (uint32_t)bootEntry->BPB_RootClus;
+    for(uint32_t i = 0; i < numOfClsts; i++){
+        curClstSt = dataSt+ (fileInfo.fatStart - rtClst + i) * bytePerSec * secPerClus;
+        if((i+1) * bytePerCls < fileInfo.fileSize){
+            memcpy((void*)(des+i*bytePerCls), fMap+curClstSt, bytePerCls);
+        }else{
+            memcpy((void*)(des+i*bytePerCls), fMap+curClstSt, fileInfo.fileSize - i * bytePerCls);
+        }
+    }
 }

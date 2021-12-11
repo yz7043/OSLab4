@@ -103,13 +103,26 @@ int main(int argc, char** argv){
     if(recover){
         if(!nonCont){
             if(hasSHA){
-                std::cout << "recover with SHA" << endl;
+                unsigned char* ucShaStr = reinterpret_cast<unsigned char*>(shaStr);
+                int res = fsh->recoverConFileSha(recoverFile, ucShaStr);
+                if(res == 1){
+                    cout << fileName << SUCC_RECOVER_SHA << endl;
+                }else if(res == -1){
+                    cout << fileName << FILE_NOT_FOUND << endl;
+                }
             }else{
-                fsh->recoverConFile(recoverFile);
+                int res = fsh->recoverConFile(recoverFile);
+                if(res == 1){
+                    cout << recoverFile << SUCC_RECOVER << endl;
+                }else if(res == -1){
+                    cout << recoverFile << MULTI_FILE_FOUND << endl;
+                }else if(res == -2){
+                    cout << recoverFile << FILE_NOT_FOUND << endl;
+                }
             }
         }else{
             if(hasSHA){
-            std::cout << "recover with SHA" << endl;
+                std::cout << "recover with SHA" << endl;
             }else{
                 std::cout << "recover without SHA" << endl;
             }

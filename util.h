@@ -29,7 +29,7 @@ public:
 class FSHandler{
 public:
     FileHandler* fileH;
-    uint32_t dataStart;
+    // uint32_t dataStart;
     std::vector<uint32_t> fatStPoint;
     uint32_t numOfFat;
     uint32_t secPerClus;
@@ -50,13 +50,15 @@ public:
     bool isEmptyName(unsigned char*);
     std::string getName(unsigned char*, bool);
     int recoverConFile(const char*);
-    int recoverConFileSha(const char*, const char*);
+    int recoverConFileSha(const char*, const unsigned char*);
     std::vector<DelFileInfo> getAllDelFiles(const char*);
     unsigned char* getUCName(const char*);
     uint32_t getClstFromLoHi(unsigned short hi, unsigned short lo);
-
+private:
+    void getConFileContent(const char*, unsigned char*, const DelFileInfo&);
 };
 #define FILE_NOT_FOUND ": file not found"
 #define MULTI_FILE_FOUND ": multiple candidates found"
-
+#define SUCC_RECOVER ": successfully recovered"
+#define SUCC_RECOVER_SHA ": successfully recovered with SHA-1"
 #endif
