@@ -49,7 +49,7 @@ typedef struct DirEntry {
 } DirEntry;
 #pragma pack(pop)
 #define FAT_ENTRY_SIZE 4 // in Byte
-#define FAT_EOF 0x0ffffff8
+#define FAT_EOF 0x0ffffff8 // EOF should >= this value
 #define FAT_NAME_SIZE 8
 #define FAT_EXT_SIZE 3
 #define FAT_FILE_NAME 11
