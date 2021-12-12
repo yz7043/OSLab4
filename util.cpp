@@ -25,7 +25,6 @@ int FileHandler::openFile(bool rdOnly){
     else
         fd = open(fileName, O_RDWR);
     if(fd < 0){
-        cerr << "Open file system failed" << endl;
         fileMap = NULL;
         return -1;
     }
@@ -117,7 +116,9 @@ void FSHandler::printRootDir(){
         int entryOffset = 0;
         while(entryOffset < dirEntPerClst){
             struct DirEntry dirEntry;
-            memcpy((void*)&dirEntry, fileH->fileMap + dataSt + entryOffset  * sizeof(DirEntry), sizeof(DirEntry));
+            uint32_t entryPos = dataSt + entryOffset  * sizeof(DirEntry);
+            entryPos += (allClsts[i] - bootEntry->BPB_RootClus) * bytePerSec * secPerClus;
+            memcpy((void*)&dirEntry, fileH->fileMap + entryPos, sizeof(DirEntry));
             if(!isDelName(dirEntry.DIR_Name) && !isEmptyName(dirEntry.DIR_Name)){
                 string name = getName(dirEntry.DIR_Name, dirEntry.DIR_Attr & DIR_MASK);
                 uint32_t cls = dirEntry.DIR_FstClusHI << 16 | dirEntry.DIR_FstClusLO;
@@ -127,6 +128,7 @@ void FSHandler::printRootDir(){
             entryOffset++;
         }
     }
+    cout << ROOT_TOTAL_ENT << totalEntries << endl;
     fileH->closeFile();
 }
 
@@ -348,7 +350,6 @@ void FSHandler::permute(uint32_t curHead, uint32_t n, vector<vector<uint32_t> >&
         swap(repo[i], repo[curHead]);
         nums.push_back(repo[curHead]);
         permute(curHead+1, n, res, nums, repo);
-        // cout << curHead << endl;
         nums.pop_back();
         swap(repo[i], repo[curHead]);
     }
@@ -404,11 +405,7 @@ int FSHandler::recoverDisFileSha(const char* name, const unsigned char* shaStr){
                         fatContent = perm[per][i+1];
                     }
                     for(uint32_t i = 0; i < numOfFat; i++){
-                        uint32_t fatSt = fatStPoint[i];
-                        if(fatContent == FAT_EOF)
-                            cout << "Cur fat: " << curClst << ", next fat: " << "eof" << endl; 
-                        else
-                            cout << "Cur fat: " << curClst << ", next fat: " << fatContent << endl; 
+                        uint32_t fatSt = fatStPoint[i]; 
                         memcpy((void*)(fileH->fileMap+fatSt+curClst*FAT_ENTRY_SIZE), &fatContent, sizeof(fatContent));
                     }
                     // curClst++;

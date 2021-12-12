@@ -68,6 +68,7 @@ private:
 #define MULTI_FILE_FOUND ": multiple candidates found"
 #define SUCC_RECOVER ": successfully recovered"
 #define SUCC_RECOVER_SHA ": successfully recovered with SHA-1"
+#define ROOT_TOTAL_ENT "Total number of entries = "
 #define NON_CON_ST_CLST 2
 #define NON_CON_END_CLST 12
 #endif

@@ -45,6 +45,13 @@ int main(int argc, char** argv){
     // some helpful global value
     fh = new FileHandler(fileName);
     fsh = new FSHandler(fh);
+    int testDisk = fh->openFile();
+    fh->closeFile();
+    if(testDisk == -1){
+        std::cout << USAGE_INFO << endl;
+        return 0;
+    }
+
     fsh->initHandler();
     while((opt = getopt(argc, argv, "ilr:R:s:")) != -1){
         switch(opt){
