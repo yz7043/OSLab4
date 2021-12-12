@@ -91,9 +91,9 @@ int main(int argc, char** argv){
                 unsigned char* ucShaStr = reinterpret_cast<unsigned char*>(shaStr);
                 int res = fsh->recoverConFileSha(recoverFile, ucShaStr);
                 if(res == 1){
-                    cout << fileName << SUCC_RECOVER_SHA << endl;
+                    cout << recoverFile << SUCC_RECOVER_SHA << endl;
                 }else if(res == -1){
-                    cout << fileName << FILE_NOT_FOUND << endl;
+                    cout << recoverFile << FILE_NOT_FOUND << endl;
                 }
             }else{
                 int res = fsh->recoverConFile(recoverFile);
