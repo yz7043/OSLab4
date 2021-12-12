@@ -197,7 +197,6 @@ int FSHandler::recoverConFile(const char* name){
         }else{
             fatContent = curClst + 1;
         }
-        // cout << "Which Clster: " << std::hex << curClst << ", To write: "<< fatContent << endl;
         for(uint32_t i = 0; i < numOfFat; i++){
             uint32_t fatSt = fatStPoint[i];
             memcpy((void*)(fileH->fileMap+fatSt+curClst*FAT_ENTRY_SIZE), &fatContent, sizeof(fatContent));
@@ -273,12 +272,24 @@ vector<DelFileInfo> FSHandler::getAllDelFiles(const char* name){
         int entryOffset = 0;
         while(entryOffset < dirEntPerClst){
             struct DirEntry dirEntry;
-            memcpy((void*)&dirEntry, fileH->fileMap + dataSt + entryOffset  * sizeof(DirEntry), sizeof(DirEntry));
+            // get correct cluster to start with
+            uint32_t entryPos = dataSt + entryOffset  * sizeof(DirEntry);
+            entryPos += (allClsts[i] - bootEntry->BPB_RootClus) * bytePerSec * secPerClus;
+            memcpy((void*)&dirEntry, fileH->fileMap + entryPos, sizeof(DirEntry));
             if(isDelName(dirEntry.DIR_Name)){
-                string name = getName(dirEntry.DIR_Name, dirEntry.DIR_Attr & DIR_MASK);
-                uint32_t cls = getClstFromLoHi(dirEntry.DIR_FstClusHI, dirEntry.DIR_FstClusLO);
-                DelFileInfo tempDel = DelFileInfo(cls, dirEntry.DIR_FileSize, entryOffset);
-                delFilesSt.push_back(tempDel);
+                bool isTargetFile = true;
+                for(int i = 1; i < FAT_FILE_NAME; i++){
+                    if(fsName[i] != dirEntry.DIR_Name[i]){
+                        isTargetFile = false; break;
+                    }
+                }
+                if(isTargetFile){
+                    string name = getName(dirEntry.DIR_Name, dirEntry.DIR_Attr & DIR_MASK);
+                    uint32_t cls = getClstFromLoHi(dirEntry.DIR_FstClusHI, dirEntry.DIR_FstClusLO);
+                    // DelFileInfo tempDel = DelFileInfo(cls, dirEntry.DIR_FileSize, entryOffset);
+                    DelFileInfo tempDel = DelFileInfo(cls, dirEntry.DIR_FileSize, entryPos-dataSt);
+                    delFilesSt.push_back(tempDel);
+                }
             }
             entryOffset++;
         }
