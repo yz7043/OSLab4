@@ -368,7 +368,7 @@ void FSHandler::permute(uint32_t curHead, uint32_t n, vector<vector<uint32_t> >&
 int FSHandler::recoverDisFileSha(const char* name, const unsigned char* shaStr){
     // 
     vector<uint32_t> repo;
-    for(uint32_t i = 2; i <= 6; i++){repo.push_back(i);}
+    for(uint32_t i = 2; i <= 11; i++){repo.push_back(i);}
     
     vector<DelFileInfo> allPosFiles = getAllDelFiles(name); 
     if(allPosFiles.empty()) return -1;
@@ -412,19 +412,20 @@ int FSHandler::recoverDisFileSha(const char* name, const unsigned char* shaStr){
                     if(i == numClsts - 1){
                         fatContent = FAT_EOF;
                     }else{
-                        // perm[per] store all fat entries, i -> i+1
                         fatContent = perm[per][i+1];
                     }
                     for(uint32_t i = 0; i < numOfFat; i++){
                         uint32_t fatSt = fatStPoint[i]; 
                         memcpy((void*)(fileH->fileMap+fatSt+curClst*FAT_ENTRY_SIZE), &fatContent, sizeof(fatContent));
                     }
-                    // curClst++;
                     curClst = fatContent;
                 }
             }
             delete fileCont;
         }
+    }
+    if(!findSHA){
+        return -1;
     }
     fileH->closeFile();
     return 1;
