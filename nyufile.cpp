@@ -122,9 +122,13 @@ int main(int argc, char** argv){
             }
         }else{
             if(hasSHA){
-                std::cout << "recover with SHA" << endl;
+                int res = fsh->recoverDisFileSha(recoverFile, reinterpret_cast<unsigned char*>(shaStr));
+                if(res == 1)
+                    std::cout << recoverFile << SUCC_RECOVER_SHA << endl;
+                else
+                    std::cout << recoverFile << FILE_NOT_FOUND << endl;
             }else{
-                std::cout << "recover without SHA" << endl;
+                std::cout << recoverFile << FILE_NOT_FOUND << endl;
             }
         }
         

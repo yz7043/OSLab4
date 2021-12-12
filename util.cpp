@@ -222,7 +222,6 @@ int FSHandler::recoverConFileSha(const char* name, const unsigned char* shaStr){
         }
         bool isSame = true;
         for(int i = 0; i < SHA_DIGEST_LENGTH * 2; i++){
-            // cout << (char)fileShaStr[i];
             if(fileShaStr[i] != shaStr[i]){
                 isSame = false; break;
             }
@@ -331,6 +330,107 @@ void FSHandler::getConFileContent(const char* fMap, unsigned char* des, const De
     uint32_t rtClst = (uint32_t)bootEntry->BPB_RootClus;
     for(uint32_t i = 0; i < numOfClsts; i++){
         curClstSt = dataSt+ (fileInfo.fatStart - rtClst + i) * bytePerSec * secPerClus;
+        if((i+1) * bytePerCls < fileInfo.fileSize){
+            memcpy((void*)(des+i*bytePerCls), fMap+curClstSt, bytePerCls);
+        }else{
+            memcpy((void*)(des+i*bytePerCls), fMap+curClstSt, fileInfo.fileSize - i * bytePerCls);
+        }
+    }
+}
+
+void FSHandler::permute(uint32_t curHead, uint32_t n, vector<vector<uint32_t> >& res, 
+        vector<uint32_t>& nums, vector<uint32_t>& repo){
+    if(n == nums.size()){
+        res.push_back(vector<uint32_t>(nums));
+        return;
+    }
+    for(uint32_t i = curHead; i < repo.size(); i++){
+        swap(repo[i], repo[curHead]);
+        nums.push_back(repo[curHead]);
+        permute(curHead+1, n, res, nums, repo);
+        // cout << curHead << endl;
+        nums.pop_back();
+        swap(repo[i], repo[curHead]);
+    }
+}
+int FSHandler::recoverDisFileSha(const char* name, const unsigned char* shaStr){
+    // 
+    vector<uint32_t> repo;
+    for(uint32_t i = 2; i <= 6; i++){repo.push_back(i);}
+    
+    vector<DelFileInfo> allPosFiles = getAllDelFiles(name); 
+    if(allPosFiles.empty()) return -1;
+    fileH->openFile(false);
+    bool findSHA = false;
+    for(vector<DelFileInfo>::iterator it = allPosFiles.begin(); it != allPosFiles.end(); it++){
+        unsigned char shaHash[SHA_DIGEST_LENGTH];
+        unsigned char fileShaStr[SHA_DIGEST_LENGTH*2];
+        DelFileInfo& fileInfo = *it;
+        unsigned int numClsts = fileInfo.fileSize / (bytePerSec * secPerClus) + (fileInfo.fileSize % (bytePerSec * secPerClus) != 0);
+        // calculate permutation
+        vector<vector<uint32_t> > perm; vector<uint32_t> nums;
+        permute((uint32_t)0, numClsts, perm, nums, repo);
+        for(int per = 0; per < perm.size(); per++){
+            unsigned char* fileCont = new unsigned char[it->fileSize];
+            if(perm[per][0] != it->fatStart)continue;
+            getDisFileContent(fileH->fileMap, fileCont, perm[per], *it);
+            SHA1(reinterpret_cast<unsigned char*>(fileCont), it->fileSize, shaHash);
+            for (int i=0; i < SHA_DIGEST_LENGTH; i++) {
+                sprintf((char*)&(fileShaStr[i*2]), "%02x", shaHash[i]);
+            }
+            bool isSame = true;
+            for(int i = 0; i < SHA_DIGEST_LENGTH * 2; i++){
+                if(fileShaStr[i] != shaStr[i]){
+                    isSame = false; break;
+                }
+            }
+            if(isSame){
+                DelFileInfo& fileInfo = *it;
+                findSHA = true;
+                uint32_t numClsts = perm[per].size();
+                DirEntry tempEnt;
+                // recover name first
+                memcpy((void*)&tempEnt, fileH->fileMap+dataSt+fileInfo.entryStart, sizeof(DirEntry));
+                tempEnt.DIR_Name[0] = (unsigned char) name[0];
+                memcpy((void*)(fileH->fileMap+dataSt+fileInfo.entryStart), (void *)tempEnt.DIR_Name, FAT_FILE_NAME);
+                // // recover fats table
+                uint32_t curClst = fileInfo.fatStart;
+                uint32_t fatContent;
+                for(uint32_t i = 0; i < numClsts; i++){
+                    if(i == numClsts - 1){
+                        fatContent = FAT_EOF;
+                    }else{
+                        // perm[per] store all fat entries, i -> i+1
+                        fatContent = perm[per][i+1];
+                    }
+                    for(uint32_t i = 0; i < numOfFat; i++){
+                        uint32_t fatSt = fatStPoint[i];
+                        if(fatContent == FAT_EOF)
+                            cout << "Cur fat: " << curClst << ", next fat: " << "eof" << endl; 
+                        else
+                            cout << "Cur fat: " << curClst << ", next fat: " << fatContent << endl; 
+                        memcpy((void*)(fileH->fileMap+fatSt+curClst*FAT_ENTRY_SIZE), &fatContent, sizeof(fatContent));
+                    }
+                    // curClst++;
+                    curClst = fatContent;
+                }
+            }
+            delete fileCont;
+        }
+    }
+    fileH->closeFile();
+    return 1;
+}
+
+void FSHandler::getDisFileContent(const char* fMap, 
+    unsigned char* des, 
+    const vector<uint32_t>& fatEnts, 
+    const DelFileInfo& fileInfo)
+{
+    uint32_t curClstSt; uint32_t bytePerCls = bytePerSec * secPerClus;
+    uint32_t rtClst = (uint32_t)bootEntry->BPB_RootClus;
+    for(uint32_t i = 0; i < fatEnts.size(); i++){
+        curClstSt = dataSt+ (fatEnts[i] - rtClst) * bytePerSec * secPerClus;
         if((i+1) * bytePerCls < fileInfo.fileSize){
             memcpy((void*)(des+i*bytePerCls), fMap+curClstSt, bytePerCls);
         }else{

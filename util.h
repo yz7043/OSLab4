@@ -51,14 +51,23 @@ public:
     std::string getName(unsigned char*, bool);
     int recoverConFile(const char*);
     int recoverConFileSha(const char*, const unsigned char*);
+    int recoverDisFileSha(const char*, const unsigned char*);
     std::vector<DelFileInfo> getAllDelFiles(const char*);
     unsigned char* getUCName(const char*);
     uint32_t getClstFromLoHi(unsigned short hi, unsigned short lo);
+    void permute(uint32_t, uint32_t, 
+        std::vector<std::vector<uint32_t> >&, 
+        std::vector<uint32_t>&,
+        std::vector<uint32_t>&
+    );
 private:
     void getConFileContent(const char*, unsigned char*, const DelFileInfo&);
+    void getDisFileContent(const char*, unsigned char*, const std::vector<uint32_t>&, const DelFileInfo&);
 };
 #define FILE_NOT_FOUND ": file not found"
 #define MULTI_FILE_FOUND ": multiple candidates found"
 #define SUCC_RECOVER ": successfully recovered"
 #define SUCC_RECOVER_SHA ": successfully recovered with SHA-1"
+#define NON_CON_ST_CLST 2
+#define NON_CON_END_CLST 12
 #endif
